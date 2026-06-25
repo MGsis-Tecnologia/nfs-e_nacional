@@ -127,6 +127,10 @@ export default function RPSForm({ editingRps, onSave, onCancel, onShowToast }) {
       onShowToast("Preencha os dados do Tomador", "warning");
       return;
     }
+    if (!rps.servico.codigoTributacaoMunicipio) {
+      onShowToast("Informe o Código de Tributação Municipal", "warning");
+      return;
+    }
     if (!rps.servico.valorServicos || !rps.servico.discriminacao) {
       onShowToast("Preencha o valor do serviço e a discriminação", "warning");
       return;
@@ -415,11 +419,11 @@ export default function RPSForm({ editingRps, onSave, onCancel, onShowToast }) {
         {step === 3 && (
           <div className="form-grid">
             
-            <div className="form-group col-4">
+            <div className="form-group col-3">
               <label className="form-label">Item Serviço (LC 116/03)</label>
-              <select 
-                className="form-input" 
-                value={rps.servico.itemListaServico} 
+              <select
+                className="form-input"
+                value={rps.servico.itemListaServico}
                 onChange={(e) => handleServicoChange('itemListaServico', e.target.value)}
               >
                 <option value="01.05">01.05 - Licenciamento ou Cessão de Software</option>
@@ -428,6 +432,18 @@ export default function RPSForm({ editingRps, onSave, onCancel, onShowToast }) {
                 <option value="17.06">17.06 - Propaganda e Publicidade</option>
                 <option value="17.11">17.11 - Serviços de Organização e Feiras</option>
               </select>
+            </div>
+
+            <div className="form-group col-3">
+              <label className="form-label">Código Tributação Municipal *</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Ex: 01"
+                value={rps.servico.codigoTributacaoMunicipio}
+                onChange={(e) => handleServicoChange('codigoTributacaoMunicipio', e.target.value)}
+                required
+              />
             </div>
 
             <div className="form-group col-3">
