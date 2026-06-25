@@ -50,42 +50,27 @@ export function generateRpsXml(rps, settings) {
             InfDeclaracaoPrestacaoServico: {
               '@Id': rpsId,
               Rps: {
+                '@Id': `Rps1_${rps.numeroRps}_${cleanedCnpjPrestador}`,
                 IdentificacaoRps: {
                   Numero: rps.numeroRps,
                   Serie: rps.serieRps || '1',
                   Tipo: '1' // 1 = RPS
                 },
-                DataEmissao: formatDate(rps.dataEmissao),
+                DataEmissao: formatDate(rps.dataEmissao).substring(0, 10), // Apenas data, sem hora
                 Status: '1' // 1 = Normal
               },
               Competencia: rps.competencia ? rps.competencia.substring(0, 10) : formatDate(rps.dataEmissao).substring(0, 10),
               Servico: {
                 Valores: {
-                  ValorServicos: formatDecimal(rps.servico.valorServicos),
-                  ValorDeducoes: formatDecimal(rps.servico.valorDeducoes),
-                  ValorPis: formatDecimal(rps.servico.valorPis),
-                  ValorCofins: formatDecimal(rps.servico.valorCofins),
-                  ValorInss: formatDecimal(rps.servico.valorInss),
-                  ValorIr: formatDecimal(rps.servico.valorIr),
-                  ValorCsll: formatDecimal(rps.servico.valorCsll),
-                  OutrasRetencoes: formatDecimal(rps.servico.outrasRetencoes),
-                  ValoresNfse: {
-                    // Preenchido pelo provedor
-                  },
-                  Aliquota: formatAliquota(rps.servico.aliquota), // ex: 3.0000 para 3%
-                  DescontoIncondicionado: formatDecimal(rps.servico.descontoIncondicionado),
-                  DescontoCondicionado: formatDecimal(rps.servico.descontoCondicionado)
+                  ValorServicos: formatDecimal(rps.servico.valorServicos)
                 },
                 IssRetido: rps.servico.issRetido || '2', // 1 = Sim, 2 = Não
-                // Se retido, indicar o responsável: 1 = Tomador, 2 = Intermediário
-                ...(rps.servico.issRetido === '1' ? { ResponsavelRetencao: '1' } : {}),
-                ItemListaServico: rps.servico.itemListaServico, // Ex: 14.01
+                ItemListaServico: rps.servico.itemListaServico.replace('.', ''), // Remove ponto: 01.07 → 0107
                 CodigoCnae: settings.cnae.replace(/\D/g, ''),
                 CodigoTributacaoMunicipio: rps.servico.codigoTributacaoMunicipio, // Obrigatório
-                ...(rps.servico.codigoNbs ? { CodigoNbs: rps.servico.codigoNbs } : {}), // Novo para IBS/CBS
                 Discriminacao: rps.servico.discriminacao,
                 CodigoMunicipio: rps.servico.codigoMunicipio || '4108304', // Foz do Iguaçu
-                ExigibilidadeIss: rps.servico.exigibilidadeIss || '1', // 1 = Exigível
+                ExigibilidadeISS: rps.servico.exigibilidadeIss || '1', // 1 = Exigível (note: ISS em maiúsculo)
                 MunicipioIncidencia: rps.servico.municipioIncidencia || '4108304'
               },
               Prestador: {
@@ -134,32 +119,18 @@ export function generateRpsXml(rps, settings) {
 }
 
 // Wrapper for SOAP Envelope
-export function wrapInSoapEnvelope(signedXml, method = 'EnviarLoteRpsSincrono') {
-  // GestaoISS expects the raw XML inside a string parameter or nested parameter inside the SOAP body.
-  // In ABRASF 2.02, it is usually:
-  // <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:nfse="http://nfse.abrasf.org.br">
-  //    <soapenv:Header/>
-  //    <soapenv:Body>
-  //       <nfse:EnviarLoteRpsSincronoRequest>
-  //          <nfse:cabecMsg><![CDATA[<cabecalho versao="2.02" xmlns="http://www.abrasf.org.br/nfse.xsd"><versaoDados>2.02</versaoDados></cabecalho>]]></nfse:cabecMsg>
-  //          <nfse:dadosMsg><![CDATA[ ... SIGNED XML ... ]]></nfse:dadosMsg>
-  //       </nfse:EnviarLoteRpsSincronoRequest>
-  //    </soapenv:Body>
-  // </soapenv:Envelope>
-  
+export function wrapInSoapEnvelope(signedXml, method = 'RecepcionarLoteRpsSincronoRequest') {
   const cabecalho = '<cabecalho versao="2.02" xmlns="http://www.abrasf.org.br/nfse.xsd"><versaoDados>2.02</versaoDados></cabecalho>';
   
   const soapXmlObj = {
-    'soapenv:Envelope': {
-      '@xmlns:soapenv': 'http://schemas.xmlsoap.org/soap/envelope/',
-      '@xmlns:ws': 'http://ws.integration.pmfi.pr.gov.br/', // GestaoISS Foz namespace can be fozdoiguacu or integration.
-      // Wait, let's verify Foz do Iguaçu's namespace: it is usually "http://ws.integration.pmfi.pr.gov.br/" or "http://fozdoiguacupr.gestaoiss.com.br/"
-      // In the WSDL, the targetNamespace is usually "http://ws.integration.pmfi.pr.gov.br/"
-      'soapenv:Header': {},
-      'soapenv:Body': {
-        [`ws:${method}`]: {
-          'ws:cabecMsg': cabecalho,
-          'ws:dadosMsg': signedXml
+    'soap:Envelope': {
+      '@xmlns:soap': 'http://schemas.xmlsoap.org/soap/envelope/',
+      '@xmlns:nfse': 'http://nfse.abrasf.org.br',
+      'soap:Header': {},
+      'soap:Body': {
+        [`nfse:${method}`]: {
+          'nfseCabecMsg': cabecalho,
+          'nfseDadosMsg': signedXml
         }
       }
     }

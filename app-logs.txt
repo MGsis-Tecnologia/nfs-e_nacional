@@ -1,0 +1,58 @@
+
+> nfse-emissor-foz@1.0.0 dev
+> concurrently "npm run dev --prefix backend" "npm run dev --prefix frontend"
+
+(node:224296) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[1] 
+[1] > nfse-emissor-frontend@0.0.0 dev
+[1] > vite
+[1] 
+[0] 
+[0] > nfse-emissor-backend@1.0.0 dev
+[0] > nodemon server.js
+[0] 
+[0] [33m[nodemon] 3.1.14[39m
+[0] [33m[nodemon] to restart at any time, enter `rs`[39m
+[0] [33m[nodemon] watching path(s): *.*[39m
+[0] [33m[nodemon] watching extensions: js,mjs,cjs,json[39m
+[0] [32m[nodemon] starting `node server.js`[39m
+[1] 
+[1]   [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m427[22m[2m[0m ms[22m
+[1] 
+[1]   [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m3000[22m/[39m
+[1] [2m  [32m➜[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
+[0] Backend rodando localmente na porta 3001
+[0] [CERTIFICADO] Carregando: certificate.pfx
+[0] [CERTIFICADO] Arquivo lido: 3867 bytes
+[0] [CERTIFICADO] ✅ Certificado carregado e validado com sucesso
+[0] 
+[0] ========== ENVIANDO RPS 620 ==========
+[0] URL: https://homologacao.gestaoiss.com.br/ws/nfse.asmx
+[0] Ambiente: HOMOLOGAÇÃO
+[0] Certificado: certificate.pfx
+[0] [1/3] Carregando certificado...
+[0] [2/3] Enviando requisição SOAP...
+[0] 
+[0] ❌ ERRO NA TRANSMISSÃO DO RPS 620:
+[0]    Tipo: ERR_CRYPTO_UNSUPPORTED_OPERATION
+[0]    Mensagem: Unsupported PKCS12 PFX data
+[0]    Sem resposta do servidor (verifique conectividade/firewall)
+[0] [32m[nodemon] restarting due to changes...[39m
+[0] [32m[nodemon] starting `node server.js`[39m
+[0] Backend rodando localmente na porta 3001
+[0] Error: EBUSY: resource busy or locked, unlink 'D:\Nfs-e\backend\certs\certificate.pfx'
+[0]     at Object.unlinkSync (node:fs:1932:11)
+[0]     at file:///D:/Nfs-e/backend/server.js:94:10
+[0]     at Layer.handle [as handle_request] (D:\Nfs-e\backend\node_modules\express\lib\router\layer.js:95:5)
+[0]     at next (D:\Nfs-e\backend\node_modules\express\lib\router\route.js:149:13)
+[0]     at done (D:\Nfs-e\backend\node_modules\multer\lib\make-middleware.js:47:7)
+[0]     at indicateDone (D:\Nfs-e\backend\node_modules\multer\lib\make-middleware.js:51:68)
+[0]     at D:\Nfs-e\backend\node_modules\multer\lib\make-middleware.js:157:11
+[0]     at WriteStream.<anonymous> (D:\Nfs-e\backend\node_modules\multer\storage\disk.js:43:9)
+[0]     at WriteStream.emit (node:events:521:24)
+[0]     at finish (node:internal/streams/writable:953:10)
+[0] [32m[nodemon] restarting due to changes...[39m
+[0] [32m[nodemon] starting `node server.js`[39m
+[0] Backend rodando localmente na porta 3001
+[0] npm run dev --prefix backend exited with code 4294967295

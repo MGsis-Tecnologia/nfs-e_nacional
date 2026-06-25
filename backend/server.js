@@ -236,11 +236,26 @@ app.post('/api/rps/:id/send', async (req, res) => {
       return res.status(400).json({ error: "Arquivo físico do certificado não encontrado." });
     }
 
+    console.log(`[CERTIFICADO] Carregando: ${certConfig.filename}`);
     const certBuffer = fs.readFileSync(certPath);
-    const { privateKeyPem, certPemClean } = loadCertificate(certBuffer, certConfig.password);
+    console.log(`[CERTIFICADO] Arquivo lido: ${certBuffer.length} bytes`);
+
+    let privateKeyPem, certPem, certPemClean;
+    try {
+      const certData = loadCertificate(certBuffer, certConfig.password);
+      privateKeyPem = certData.privateKeyPem;
+      certPem = certData.certPem;
+      certPemClean = certData.certPemClean;
+      console.log(`[CERTIFICADO] ✅ Certificado carregado e validado com sucesso`);
+    } catch (certErr) {
+      console.error(`[CERTIFICADO] ❌ Erro ao carregar certificado:`);
+      console.error(`             ${certErr.message}`);
+      throw certErr;
+    }
 
     // 1. Generate XML
     const { xml, loteId, rpsId } = generateRpsXml(rps, settings);
+    console.log(`\n[XML GERADO - ANTES DA ASSINATURA]:\n${xml}\n`);
 
     // 2. Sign XML
     const signedXml = signRpsXml({
@@ -250,9 +265,10 @@ app.post('/api/rps/:id/send', async (req, res) => {
       privateKeyPem,
       certPemClean
     });
+    console.log(`\n[XML ASSINADO - PRONTO PARA ENVIO]:\n${signedXml}\n`);
 
     // 3. Wrap in SOAP Envelope
-    const soapEnvelope = wrapInSoapEnvelope(signedXml, 'EnviarLoteRpsSincrono');
+    const soapEnvelope = wrapInSoapEnvelope(signedXml, 'RecepcionarLoteRpsSincronoRequest');
 
     // 4. Send to WebService (Mutual SSL)
     const isProd = settings.ambiente === '1';
@@ -261,7 +277,10 @@ app.post('/api/rps/:id/send', async (req, res) => {
       : 'https://homologacao.gestaoiss.com.br/ws/nfse.asmx';
 
     // Log request
-    console.log(`Enviando RPS ${rps.numeroRps} para ${soapUrl}...`);
+    console.log(`\n========== ENVIANDO RPS ${rps.numeroRps} ==========`);
+    console.log(`URL: ${soapUrl}`);
+    console.log(`Ambiente: ${isProd ? 'PRODUÇÃO' : 'HOMOLOGAÇÃO'}`);
+    console.log(`Certificado: ${certConfig.filename}`);
 
     let responseData = '';
     let statusText = 'Erro';
@@ -269,22 +288,26 @@ app.post('/api/rps/:id/send', async (req, res) => {
 
     try {
       // Configuration for HTTPS Agent with client certificate (Mutual SSL)
+      console.log(`[1/3] Configurando certificado para HTTPS...`);
       const agent = new https.Agent({
-        pfx: certBuffer,
-        passphrase: certConfig.password,
+        key: privateKeyPem,  // Chave privada em PEM com BEGIN/END
+        cert: certPem,       // Certificado em PEM com BEGIN/END (não usar certPemClean!)
         rejectUnauthorized: false // Avoid SSL certificate validation issues typical of municipal servers
       });
+      console.log(`[2/3] Enviando requisição SOAP...`);
 
       const response = await axios.post(soapUrl, soapEnvelope, {
         headers: {
           'Content-Type': 'text/xml; charset=utf-8',
-          'SOAPAction': 'http://ws.integration.pmfi.pr.gov.br/EnviarLoteRpsSincrono'
+          'SOAPAction': 'http://nfse.abrasf.org.br/RecepcionarLoteRpsSincrono'
         },
         httpsAgent: agent,
         timeout: 25000 // 25 seconds timeout
       });
 
       responseData = response.data;
+      console.log(`[3/3] Resposta recebida da prefeitura!`);
+      console.log(`Status HTTP: ${response.status}`);
 
       // Parse Response to detect success or failure
       // Check for presence of <Protocolo> (success) or <ListaMensagemRetorno> (error)
@@ -296,12 +319,15 @@ app.post('/api/rps/:id/send', async (req, res) => {
       if (hasProtocolo || hasNumeroNfse) {
         // Success: received Protocolo or NFS-e numbers
         statusText = 'Processado';
+        console.log(`✅ SUCESSO! Protocolo/NFS-e gerado.`);
       } else if (hasListaMensagemRetorno || hasErro) {
         // Error: received messages or explicit error
         statusText = 'Erro';
+        console.log(`❌ ERRO da prefeitura na resposta.`);
       } else {
         // Unknown response format
         statusText = 'Erro';
+        console.log(`⚠️  Resposta em formato desconhecido.`);
       }
 
       responseObj = {
@@ -312,7 +338,15 @@ app.post('/api/rps/:id/send', async (req, res) => {
       };
 
     } catch (sendErr) {
-      console.error("Erro na transmissão SOAP:", sendErr.message);
+      console.error(`\n❌ ERRO NA TRANSMISSÃO DO RPS ${rps.numeroRps}:`);
+      console.error(`   Tipo: ${sendErr.code || sendErr.name}`);
+      console.error(`   Mensagem: ${sendErr.message}`);
+      if (sendErr.response) {
+        console.error(`   Status HTTP: ${sendErr.response.status}`);
+        console.error(`   Resposta: ${sendErr.response.data?.substring(0, 200)}`);
+      } else {
+        console.error(`   Sem resposta do servidor (verifique conectividade/firewall)`);
+      }
       statusText = 'Erro';
       responseObj = {
         success: false,
