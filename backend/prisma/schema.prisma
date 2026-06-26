@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Emissor {
+  id                       String   @id @default(cuid())
+  cnpj                     String   @unique
+  inscricaoMunicipal       String
+  razaoSocial              String
+  nomeFantasia             String?
+  cnae                     String?
+  incentivoFiscal          Boolean  @default(false)
+  optanteSimplesNacional   String   @default("2") // "1"=Sim, "2"=Não
+  regimeEspecialTributacao String   @default("0")
+  ambiente                 String   @default("2") // "1"=Produção, "2"=Homologação
+  endereco                 Json
+  contato                  Json
+  certFilename             String?
+  certPassword             String?
+  certPfxBase64            String?  @db.Text
+  apiToken                 String   @unique
+  proximoRps               Int      @default(1)
+  proximoLote              Int      @default(1)
+  ativo                    Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  notas                    Nota[]
+}
+
+model Nota {
+  id                String   @id @default(cuid())
+  emissor           Emissor  @relation(fields: [emissorId], references: [id], onDelete: Cascade)
+  emissorId         String
+  numeroRps         String
+  numeroLote        String
+  serieRps          String   @default("1")
+  dataEmissao       String
+  competencia       String
+  tomador           Json
+  servico           Json
+  status            String   @default("Rascunho") // Rascunho|Processado|Erro
+  origem            String   @default("FRONT")     // FRONT|ERP
+  numeroNfse        String?
+  codigoVerificacao String?
+  chaveAcesso       String?
+  retorno           Json?
+  createdAt         DateTime @default(now())
+
+  @@index([emissorId, status])
+  @@index([emissorId, numeroRps])
+  @@index([numeroNfse])
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}

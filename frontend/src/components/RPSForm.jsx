@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FilePlus, Save, ArrowLeft, ArrowRight, X } from 'lucide-react';
+import { apiJson } from '../api';
 
 const emptyRps = {
   numeroRps: "",
@@ -47,7 +48,7 @@ const emptyRps = {
   }
 };
 
-export default function RPSForm({ editingRps, onSave, onCancel, onShowToast }) {
+export default function RPSForm({ editingRps, emissorId, onSave, onCancel, onShowToast }) {
   const [step, setStep] = useState(1);
   const [rps, setRps] = useState(emptyRps);
 
@@ -60,9 +61,9 @@ export default function RPSForm({ editingRps, onSave, onCancel, onShowToast }) {
         competencia: editingRps.competencia ? editingRps.competencia.slice(0, 10) : new Date().toISOString().slice(0, 10)
       });
     } else {
-      // Novo RPS: busca o próximo número de RPS e Lote para não repetir
-      fetch('/api/sequencias')
-        .then(r => r.ok ? r.json() : null)
+      // Novo RPS: busca o próximo número de RPS e Lote do emissor ativo (para não repetir)
+      if (!emissorId) { setRps(emptyRps); return; }
+      apiJson(`/api/sequencias?emissorId=${emissorId}`)
         .then(seq => {
           setRps({
             ...emptyRps,
@@ -72,7 +73,7 @@ export default function RPSForm({ editingRps, onSave, onCancel, onShowToast }) {
         })
         .catch(() => setRps(emptyRps));
     }
-  }, [editingRps]);
+  }, [editingRps, emissorId]);
 
   const handleInputChange = (field, value) => {
     setRps(prev => ({

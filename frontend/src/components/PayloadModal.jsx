@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Copy, Check, FileCode, Terminal, HelpCircle } from 'lucide-react';
+import { apiFetch } from '../api';
 
 export default function PayloadModal({ isOpen, rps, onClose, onShowToast }) {
   const [activeTab, setActiveTab] = useState('unsigned');
@@ -22,7 +23,7 @@ export default function PayloadModal({ isOpen, rps, onClose, onShowToast }) {
   const fetchUnsignedXml = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/rps/${rps.id}/generate`, { method: 'POST' });
+      const res = await apiFetch(`/api/rps/${rps.id}/generate`, { method: 'POST' });
       if (!res.ok) throw new Error("Erro ao gerar XML básico.");
       const data = await res.json();
       setUnsignedXml(data.xml);

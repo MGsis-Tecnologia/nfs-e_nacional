@@ -92,7 +92,7 @@ export function generateRpsXml(rps, settings) {
                 },
                 IssRetido: rps.servico.issRetido || '2', // 1 = Sim, 2 = Não
                 ItemListaServico: rps.servico.itemListaServico.replace('.', ''), // Remove ponto: 01.07 → 0107
-                CodigoCnae: settings.cnae.replace(/\D/g, ''),
+                CodigoCnae: (settings.cnae || '').replace(/\D/g, ''),
                 CodigoTributacaoMunicipio: rps.servico.codigoTributacaoMunicipio, // Obrigatório
                 Discriminacao: rps.servico.discriminacao,
                 CodigoMunicipio: rps.servico.codigoMunicipio || '4108304', // Foz do Iguaçu
