@@ -2,7 +2,8 @@ node_modules/
 backend/node_modules/
 frontend/node_modules/
 backend/certs/
-backend/database.json
+# backend/database.json -> versionado de propósito (config + notas + retornos + certificado).
+# ATENÇÃO: contém o certificado e a senha em base64 -> mantenha o repositório PRIVADO.
 .env
 dist/
 frontend/dist/

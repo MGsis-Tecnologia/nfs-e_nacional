@@ -34,7 +34,7 @@ const emptyRps = {
     valorIr: "0.00",
     valorCsll: "0.00",
     outrasRetencoes: "0.00",
-    aliquota: "5.00",
+    aliquota: "3.7610",
     descontoIncondicionado: "0.00",
     descontoCondicionado: "0.00",
     issRetido: "2", // 1 = Sim, 2 = Não
@@ -60,7 +60,17 @@ export default function RPSForm({ editingRps, onSave, onCancel, onShowToast }) {
         competencia: editingRps.competencia ? editingRps.competencia.slice(0, 10) : new Date().toISOString().slice(0, 10)
       });
     } else {
-      setRps(emptyRps);
+      // Novo RPS: busca o próximo número de RPS e Lote para não repetir
+      fetch('/api/sequencias')
+        .then(r => r.ok ? r.json() : null)
+        .then(seq => {
+          setRps({
+            ...emptyRps,
+            numeroRps: seq?.proximoRps != null ? String(seq.proximoRps) : "",
+            numeroLote: seq?.proximoLote != null ? String(seq.proximoLote) : emptyRps.numeroLote
+          });
+        })
+        .catch(() => setRps(emptyRps));
     }
   }, [editingRps]);
 
@@ -476,11 +486,11 @@ export default function RPSForm({ editingRps, onSave, onCancel, onShowToast }) {
 
             <div className="form-group col-2">
               <label className="form-label">Alíquota (%)</label>
-              <input 
-                type="number" 
-                step="0.01" 
-                className="form-input" 
-                value={rps.servico.aliquota} 
+              <input
+                type="number"
+                step="0.0001"
+                className="form-input"
+                value={rps.servico.aliquota}
                 onChange={(e) => handleServicoChange('aliquota', e.target.value)}
                 required
               />

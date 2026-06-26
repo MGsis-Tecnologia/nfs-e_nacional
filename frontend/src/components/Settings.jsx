@@ -297,13 +297,18 @@ export default function Settings({ onShowToast }) {
             <label className="form-label">Regime Especial de Tributação</label>
             <select name="regimeEspecialTributacao" className="form-input" value={settings.regimeEspecialTributacao} onChange={handleInputChange}>
               <option value="0">Nenhum</option>
-              <option value="1">Microempresa Municipal</option>
-              <option value="2">Estimativa</option>
-              <option value="3">Sociedade de Profissionais</option>
-              <option value="4">Cooperativa</option>
-              <option value="5">Microempresário Individual (MEI)</option>
-              <option value="6">Microempresa ou Empresa de Pequeno Porte (ME/EPP)</option>
+              <option value="01">01 - Microempresa Municipal</option>
+              <option value="02">02 - Estimativa</option>
+              <option value="03">03 - Sociedade de Profissionais</option>
+              <option value="04">04 - Cooperativa</option>
+              <option value="05">05 - Microempresário Individual (MEI)</option>
+              <option value="06">06 - Microempresa ou Empresa de Pequeno Porte (ME/EPP)</option>
             </select>
+            {settings.optanteSimplesNacional === "1" && (settings.regimeEspecialTributacao === "0" || !settings.regimeEspecialTributacao) && (
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-warning)', marginTop: '0.35rem', display: 'block' }}>
+                Optante do Simples Nacional: selecione "05" (MEI) ou "06" (ME/EPP) — obrigatório pela prefeitura.
+              </span>
+            )}
           </div>
 
           <div className="form-group col-12" style={{ display: 'flex', gap: '2rem' }}>

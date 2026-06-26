@@ -94,9 +94,19 @@ export default function App() {
       if (!res.ok) throw new Error(data.error || "Erro no envio.");
       
       if (data.status === 'Processado') {
-        showToast("RPS processado com sucesso e NFS-e emitida!", "success");
+        const nfse = data.result?.nfse;
+        showToast(
+          nfse?.numero
+            ? `NFS-e nº ${nfse.numero} emitida com sucesso! (verificação ${nfse.codigoVerificacao || '-'})`
+            : "RPS processado com sucesso e NFS-e emitida!",
+          "success"
+        );
       } else {
-        showToast("A prefeitura rejeitou o RPS. Verifique os logs de erro.", "error");
+        const msgs = data.result?.mensagens || [];
+        const detalhe = msgs.length
+          ? msgs.map(m => `[${m.codigo}] ${m.mensagem}`).join(' | ')
+          : "Verifique os detalhes no ícone de XML/logs.";
+        showToast(`Prefeitura rejeitou: ${detalhe}`, "error");
       }
       
       await fetchRpsList();

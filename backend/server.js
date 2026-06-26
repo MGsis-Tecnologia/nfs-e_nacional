@@ -9,6 +9,8 @@ import { fileURLToPath } from 'url';
 import { db } from './db.js';
 import { generateRpsXml, wrapInSoapEnvelope } from './utils/xmlGenerator.js';
 import { loadCertificate, signRpsXml } from './utils/xmlSigner.js';
+import { parseResposta } from './utils/responseParser.js';
+import { generateNfsePdf } from './utils/pdfGenerator.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,31 +22,16 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Certs Directory Setup
-const certsDir = path.join(__dirname, 'certs');
-if (!fs.existsSync(certsDir)) {
-  fs.mkdirSync(certsDir, { recursive: true });
-}
-
-// Multer Config for Certificate Uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, certsDir);
-  },
-  filename: (req, file, cb) => {
-    // Keep it simple, save as cert.p12 or cert.pfx
-    const ext = path.extname(file.originalname);
-    cb(null, `certificate${ext}`);
-  }
-});
-const upload = multer({ storage });
+// Multer em memória: o certificado é salvo no banco (base64), não em disco.
+// Assim o .pfx viaja junto do banco versionado e funciona em outra máquina.
+const upload = multer({ storage: multer.memoryStorage() });
 
 // API: Settings
 app.get('/api/settings', (req, res) => {
   try {
     const settings = db.getSettings();
     const cert = db.getCert();
-    res.json({ settings, cert: cert ? { filename: cert.filename, passwordConfigured: !!cert.password } : null });
+    res.json({ settings, cert: cert && cert.pfxBase64 ? { filename: cert.filename, passwordConfigured: !!cert.password } : null });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -67,33 +54,37 @@ app.post('/api/settings/cert', upload.single('certificate'), (req, res) => {
       return res.status(400).json({ error: "Nenhum arquivo enviado." });
     }
 
-    const filePath = req.file.path;
-    const fileBuffer = fs.readFileSync(filePath);
+    const fileBuffer = req.file.buffer; // memoryStorage -> buffer em memória
 
-    // Validate the certificate and password immediately
-    const certData = loadCertificate(fileBuffer, password);
+    // Valida o certificado e a senha imediatamente
+    loadCertificate(fileBuffer, password);
 
-    // If valid, save to database config
+    // Se válido, salva NO BANCO (base64) para ser portável/versionável
     db.saveCert({
-      filename: req.file.filename,
-      password: password // Saved locally
+      filename: req.file.originalname,
+      password: password,
+      pfxBase64: fileBuffer.toString('base64')
     });
 
     res.json({
       success: true,
       message: "Certificado digital configurado e validado com sucesso!",
       cert: {
-        filename: req.file.filename,
-        passwordConfigured: true,
-        validUntil: certData.validUntil // metadata can be added
+        filename: req.file.originalname,
+        passwordConfigured: true
       }
     });
   } catch (err) {
-    // Clean up file if validation failed
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
     res.status(400).json({ error: err.message });
+  }
+});
+
+// API: Sequências (próximo nº de RPS e Lote) — usado para pré-preencher o formulário
+app.get('/api/sequencias', (req, res) => {
+  try {
+    res.json(db.getSequencias());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -119,6 +110,8 @@ app.post('/api/rps', (req, res) => {
     };
     rpsList.push(newRps);
     db.saveRpsList(rpsList);
+    // Mantém a numeração de RPS sempre à frente do que já foi usado
+    if (newRps.numeroRps) db.bumpSequencia('rps', newRps.numeroRps);
     res.status(201).json(newRps);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -226,19 +219,19 @@ app.post('/api/rps/:id/send', async (req, res) => {
     if (!rps.tomador.razaoSocial) {
       return res.status(400).json({ error: "Razão Social do Tomador é obrigatória." });
     }
+    // Optante do Simples Nacional exige Regime Especial de Tributação "05" (MEI) ou "06" (ME/EPP).
+    const regimeAtual = (settings.regimeEspecialTributacao || '').toString().trim();
+    if (settings.optanteSimplesNacional === '1' && !['05', '06', '5', '6'].includes(regimeAtual)) {
+      return res.status(400).json({ error: "Empresa optante do Simples Nacional: defina o Regime Especial de Tributação como '05' (MEI) ou '06' (ME/EPP) em Configurações." });
+    }
 
-    if (!certConfig || !certConfig.filename) {
+    if (!certConfig || !certConfig.pfxBase64) {
       return res.status(400).json({ error: "Certificado digital não configurado." });
     }
 
-    const certPath = path.join(certsDir, certConfig.filename);
-    if (!fs.existsSync(certPath)) {
-      return res.status(400).json({ error: "Arquivo físico do certificado não encontrado." });
-    }
-
-    console.log(`[CERTIFICADO] Carregando: ${certConfig.filename}`);
-    const certBuffer = fs.readFileSync(certPath);
-    console.log(`[CERTIFICADO] Arquivo lido: ${certBuffer.length} bytes`);
+    console.log(`[CERTIFICADO] Carregando do banco: ${certConfig.filename}`);
+    const certBuffer = Buffer.from(certConfig.pfxBase64, 'base64');
+    console.log(`[CERTIFICADO] Certificado lido do banco: ${certBuffer.length} bytes`);
 
     let privateKeyPem, certPem, certPemClean;
     try {
@@ -263,7 +256,7 @@ app.post('/api/rps/:id/send', async (req, res) => {
       rpsId,
       loteId,
       privateKeyPem,
-      certPemClean
+      certPem
     });
     console.log(`\n[XML ASSINADO - PRONTO PARA ENVIO]:\n${signedXml}\n`);
 
@@ -309,29 +302,21 @@ app.post('/api/rps/:id/send', async (req, res) => {
       console.log(`[3/3] Resposta recebida da prefeitura!`);
       console.log(`Status HTTP: ${response.status}`);
 
-      // Parse Response to detect success or failure
-      // Check for presence of <Protocolo> (success) or <ListaMensagemRetorno> (error)
-      const hasProtocolo = responseData.includes('<Protocolo>') || responseData.includes('<protocolo>');
-      const hasNumeroNfse = responseData.includes('<NumeroNfse>') || responseData.includes('<numeroNfse>');
-      const hasListaMensagemRetorno = responseData.includes('<ListaMensagemRetorno>') || responseData.includes('<listaMensagemRetorno>');
-      const hasErro = responseData.toLowerCase().includes('erro') || responseData.toLowerCase().includes('fault');
+      // Parse correto: a resposta vem HTML-escapada dentro de <outputXML>.
+      const parsed = parseResposta(responseData);
+      statusText = parsed.status;
 
-      if (hasProtocolo || hasNumeroNfse) {
-        // Success: received Protocolo or NFS-e numbers
-        statusText = 'Processado';
-        console.log(`✅ SUCESSO! Protocolo/NFS-e gerado.`);
-      } else if (hasListaMensagemRetorno || hasErro) {
-        // Error: received messages or explicit error
-        statusText = 'Erro';
-        console.log(`❌ ERRO da prefeitura na resposta.`);
+      if (statusText === 'Processado') {
+        console.log(`✅ SUCESSO! NFS-e gerada: nº ${parsed.nfse?.numero || '?'} (verificação ${parsed.nfse?.codigoVerificacao || '?'})`);
       } else {
-        // Unknown response format
-        statusText = 'Erro';
-        console.log(`⚠️  Resposta em formato desconhecido.`);
+        console.log(`❌ ERRO da prefeitura:`);
+        parsed.mensagens.forEach(m => console.log(`   [${m.codigo}] ${m.mensagem}`));
       }
 
       responseObj = {
         success: statusText === 'Processado',
+        mensagens: parsed.mensagens,
+        nfse: parsed.nfse,
         soapResponse: responseData,
         soapRequest: soapEnvelope,
         signedXml: signedXml
@@ -362,6 +347,12 @@ app.post('/api/rps/:id/send', async (req, res) => {
     rpsList[rpsIndex].retorno = responseObj;
     db.saveRpsList(rpsList);
 
+    // Quando autoriza, avança a numeração do Lote (e garante o RPS à frente)
+    if (statusText === 'Processado') {
+      if (rps.numeroLote) db.bumpSequencia('lote', rps.numeroLote);
+      if (rps.numeroRps) db.bumpSequencia('rps', rps.numeroRps);
+    }
+
     res.json({
       status: statusText,
       result: responseObj
@@ -369,6 +360,30 @@ app.post('/api/rps/:id/send', async (req, res) => {
 
   } catch (err) {
     res.status(500).json({ error: "Erro ao assinar/enviar RPS: " + err.message });
+  }
+});
+
+// API: PDF da NFS-e autorizada (DANFSE)
+app.get('/api/rps/:id/pdf', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const rps = db.getRpsList().find(r => r.id === id);
+    if (!rps) return res.status(404).json({ error: "RPS não encontrado." });
+
+    // Re-parseia sempre a partir do soapResponse (fonte da verdade, robusto a mudanças no parser)
+    const nfse = (rps.retorno && rps.retorno.soapResponse)
+      ? parseResposta(rps.retorno.soapResponse).nfse
+      : (rps.retorno && rps.retorno.nfse);
+    if (!nfse || !nfse.numero) {
+      return res.status(400).json({ error: "Esta nota ainda não foi autorizada (sem dados de NFS-e para impressão)." });
+    }
+
+    const pdf = await generateNfsePdf(nfse, db.getSettings(), rps);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="NFSe-${nfse.numero}.pdf"`);
+    res.send(pdf);
+  } catch (err) {
+    res.status(500).json({ error: "Erro ao gerar PDF: " + err.message });
   }
 });
 

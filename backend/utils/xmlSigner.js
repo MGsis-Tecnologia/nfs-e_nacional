@@ -51,23 +51,17 @@ export function loadCertificate(pfxBuffer, password) {
 }
 
 // Function to sign an element in the XML
-function signElement({ xml, targetElementXpath, targetId, privateKeyPem, certPemClean }) {
+function signElement({ xml, targetElementXpath, targetId, privateKeyPem, certPem }) {
+  // xml-crypto v6: publicCert deve ser o PEM COMPLETO (com -----BEGIN/END CERTIFICATE-----).
+  // A lib usa o regex EXTRACT_X509_CERTS para extrair o base64 e montar
+  // <X509Data><X509Certificate>...</X509Certificate></X509Data> automaticamente.
+  // Passar o PEM "limpo" (sem marcadores) gera <X509Data> vazio -> erro E160 (incomplete content).
   const sig = new SignedXml({
     privateKey: Buffer.from(privateKeyPem),
-    publicCert: Buffer.from(certPemClean), // xml-crypto requires the raw base64 or PEM
+    publicCert: Buffer.from(certPem),
     signatureAlgorithm: 'http://www.w3.org/2000/09/xmldsig#rsa-sha1',
     canonicalizationAlgorithm: 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
   });
-
-  // Configure key info provider to output <X509Data><X509Certificate>
-  sig.keyInfoProvider = {
-    getKeyInfo: () => {
-      return `<X509Data><X509Certificate>${certPemClean}</X509Certificate></X509Data>`;
-    },
-    getKey: () => {
-      return Buffer.from(privateKeyPem);
-    }
-  };
 
   sig.addReference({
     xpath: targetElementXpath,
@@ -114,7 +108,7 @@ function signElement({ xml, targetElementXpath, targetId, privateKeyPem, certPem
   return sig.getSignedXml();
 }
 
-export function signRpsXml({ xml, rpsId, loteId, privateKeyPem, certPemClean }) {
+export function signRpsXml({ xml, rpsId, loteId, privateKeyPem, certPem }) {
   try {
     // 1. Sign InfDeclaracaoPrestacaoServico (RPS)
     // The signature goes inside the Rps tag, after InfDeclaracaoPrestacaoServico
@@ -123,7 +117,7 @@ export function signRpsXml({ xml, rpsId, loteId, privateKeyPem, certPemClean }) 
       targetElementXpath: `//*[local-name()='InfDeclaracaoPrestacaoServico' and @Id='${rpsId}']`,
       targetId: rpsId,
       privateKeyPem,
-      certPemClean
+      certPem
     });
 
     // 2. Sign LoteRps
@@ -133,7 +127,7 @@ export function signRpsXml({ xml, rpsId, loteId, privateKeyPem, certPemClean }) 
       targetElementXpath: `//*[local-name()='LoteRps' and @Id='${loteId}']`,
       targetId: loteId,
       privateKeyPem,
-      certPemClean
+      certPem
     });
 
     return signedXml;

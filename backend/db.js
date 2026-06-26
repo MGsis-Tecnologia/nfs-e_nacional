@@ -33,6 +33,11 @@ const defaultData = {
     ambiente: "2" // 1 = Produção, 2 = Homologação
   },
   cert: null,
+  // Controle de numeração sequencial (para não repetir RPS/Lote)
+  sequencias: {
+    proximoRps: 1,
+    proximoLote: 1
+  },
   rps: []
 };
 
@@ -78,6 +83,23 @@ export const db = {
     data.cert = cert;
     writeDb(data);
     return data.cert;
+  },
+  getSequencias() {
+    const data = readDb();
+    return data.sequencias || { ...defaultData.sequencias };
+  },
+  // Garante que o próximo número fique sempre à frente do que já foi usado (evita duplicidade)
+  bumpSequencia(tipo, usado) {
+    const data = readDb();
+    if (!data.sequencias) data.sequencias = { ...defaultData.sequencias };
+    const key = tipo === 'lote' ? 'proximoLote' : 'proximoRps';
+    const usadoNum = parseInt(usado, 10);
+    const atual = parseInt(data.sequencias[key], 10) || 1;
+    if (Number.isFinite(usadoNum)) {
+      data.sequencias[key] = Math.max(atual, usadoNum + 1);
+      writeDb(data);
+    }
+    return data.sequencias;
   },
   getRpsList() {
     const data = readDb();

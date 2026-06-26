@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Edit, Trash2, Send, Eye, FileCode, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Search, Edit, Trash2, Send, Eye, FileCode, CheckCircle2, AlertCircle, RefreshCw, FileText } from 'lucide-react';
 import PayloadModal from './PayloadModal';
 
 export default function RPSList({ rpsList, onEdit, onDelete, onSend, onShowToast }) {
@@ -165,6 +165,18 @@ export default function RPSList({ rpsList, onEdit, onDelete, onSend, onShowToast
                           >
                             <FileCode size={16} />
                           </button>
+
+                          {/* PDF (apenas notas autorizadas) */}
+                          {rps.status === 'Processado' && (
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '0.45rem', borderRadius: 'var(--radius-sm)', color: 'var(--color-accent)' }}
+                              onClick={() => window.open(`/api/rps/${rps.id}/pdf`, '_blank')}
+                              title="Imprimir / Baixar PDF da NFS-e"
+                            >
+                              <FileText size={16} />
+                            </button>
+                          )}
 
                           {/* Editar (apenas Rascunho ou Erro) */}
                           {(rps.status === 'Rascunho' || rps.status === 'Erro') && (
