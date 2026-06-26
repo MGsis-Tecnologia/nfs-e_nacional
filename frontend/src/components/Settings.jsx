@@ -29,6 +29,7 @@ export default function Settings({ onShowToast }) {
   });
 
   const [cert, setCert] = useState(null);
+  const [apiKey, setApiKey] = useState("");
   const [certFile, setCertFile] = useState(null);
   const [certPassword, setCertPassword] = useState("");
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -45,6 +46,7 @@ export default function Settings({ onShowToast }) {
       const data = await res.json();
       if (data.settings) setSettings(data.settings);
       if (data.cert) setCert(data.cert);
+      if (data.apiKey) setApiKey(data.apiKey);
     } catch (err) {
       onShowToast(err.message, 'error');
     }
@@ -83,6 +85,21 @@ export default function Settings({ onShowToast }) {
       onShowToast(err.message, "error");
     } finally {
       setIsSavingSettings(false);
+    }
+  };
+
+  const handleRegenerateApiKey = async () => {
+    if (!window.confirm("Gerar uma nova chave invalida a atual. Qualquer ERP que usa a chave antiga vai parar de funcionar até ser atualizado. Continuar?")) {
+      return;
+    }
+    try {
+      const res = await fetch('/api/settings/apikey/regenerate', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao gerar nova chave.");
+      setApiKey(data.apiKey);
+      onShowToast("Nova chave de API gerada! Atualize-a no seu ERP.", "success");
+    } catch (err) {
+      onShowToast(err.message, "error");
     }
   };
 
@@ -204,6 +221,29 @@ export default function Settings({ onShowToast }) {
               {isUploadingCert ? <div className="spinner"></div> : "Salvar Certificado"}
             </button>
           </form>
+        </div>
+      </div>
+
+      {/* Integração ERP / API */}
+      <div className="card">
+        <h3 style={{ marginBottom: '0.5rem', color: '#FFF' }}>Integração com ERP (API)</h3>
+        <p className="page-subtitle" style={{ marginBottom: '1rem' }}>
+          Use esta chave para emitir NFS-e a partir do seu ERP via <code>POST /api/nfse/emitir</code> (header <code>x-api-key</code>).
+        </p>
+        <div className="form-group">
+          <label className="form-label">Chave de API (x-api-key)</label>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <input type="text" className="form-input" value={apiKey} readOnly style={{ fontFamily: 'monospace' }} />
+            <button type="button" className="btn btn-secondary" onClick={() => { navigator.clipboard?.writeText(apiKey); onShowToast('Chave copiada!', 'success'); }}>
+              Copiar
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={handleRegenerateApiKey} style={{ whiteSpace: 'nowrap' }}>
+              Gerar nova
+            </button>
+          </div>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem', display: 'block' }}>
+            Mantenha em sigilo. Quem tiver esta chave pode emitir notas em seu nome.
+          </span>
         </div>
       </div>
 

@@ -152,17 +152,24 @@ export async function generateNfsePdf(nfse, settings = {}, rps = null) {
 
       // ===== PRESTADOR =====
       const pr = nfse.prestador || {};
+      // Contato do prestador: vem do cadastro da prefeitura na RESPOSTA (PrestadorServico/Contato),
+      // que é o que a DANFSE oficial mostra. Usamos esse valor; se vier vazio ou placeholder
+      // (email@nao_informado.com / 0000000000), caímos no contato das Configurações.
+      const ehPlaceholderEmail = (e) => !e || /nao_informado/i.test(e);
+      const ehPlaceholderFone = (f) => !f || /^0+$/.test(String(f).replace(/\D/g, ''));
+      const prEmail = !ehPlaceholderEmail(pr.contato?.email) ? pr.contato.email : ((settings.contato && settings.contato.email) || '');
+      const prFone = !ehPlaceholderFone(pr.contato?.telefone) ? pr.contato.telefone : ((settings.contato && settings.contato.telefone) || '');
       sec('PRESTADOR DE SERVIÇOS', y); y += 13;
       field('Razão Social', pr.razaoSocial, L, y, W); y += 18;
       field('Nome Fantasia', pr.nomeFantasia, L, y, c3 * 2 - 6);
-      field('Email', pr.contato?.email, L + 2 * c3, y, c3 - 6, { size: 8 }); y += 18;
+      field('Email', prEmail, L + 2 * c3, y, c3 - 6, { size: 8 }); y += 18;
       const c6 = W / 6;
       field('CPF/CNPJ', fmtDoc(pr.cnpj), L, y, c6 - 4, { size: 8 });
       field('Inscrição Municipal', pr.inscricaoMunicipal, L + c6, y, c6 - 4, { size: 8 });
       field('Inscrição Estadual', '', L + 2 * c6, y, c6 - 4, { size: 8 });
       field('Simples Nacional', isSimples ? 'Sim' : 'Não', L + 3 * c6, y, c6 - 4, { size: 8 });
       field('Incentivador Cultural', settings.incentivoFiscal ? 'Sim' : 'Não', L + 4 * c6, y, c6 - 4, { size: 8 });
-      field('Fone/Fax', fmtFone(pr.contato?.telefone), L + 5 * c6, y, c6 - 4, { size: 8 }); y += 18;
+      field('Fone/Fax', fmtFone(prFone), L + 5 * c6, y, c6 - 4, { size: 8 }); y += 18;
       field('Endereço', enderecoLinha(pr.endereco), L, y, W, { font: 'Helvetica-BoldOblique', size: 8 }); y += 20;
 
       // ===== TOMADOR =====

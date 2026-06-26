@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -83,6 +84,21 @@ export const db = {
     data.cert = cert;
     writeDb(data);
     return data.cert;
+  },
+  // API Key para integração com ERP/sistemas externos (gerada na 1ª vez)
+  getApiKey() {
+    const data = readDb();
+    if (!data.apiKey) {
+      data.apiKey = crypto.randomBytes(24).toString('hex');
+      writeDb(data);
+    }
+    return data.apiKey;
+  },
+  regenerateApiKey() {
+    const data = readDb();
+    data.apiKey = crypto.randomBytes(24).toString('hex');
+    writeDb(data);
+    return data.apiKey;
   },
   getSequencias() {
     const data = readDb();

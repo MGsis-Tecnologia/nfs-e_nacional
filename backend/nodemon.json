@@ -1,0 +1,4 @@
+{
+  "ignore": ["database.json", "certs/*", "assets/*"],
+  "ext": "js,mjs,cjs,json"
+}

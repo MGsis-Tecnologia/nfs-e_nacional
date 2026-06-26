@@ -41,6 +41,20 @@ export function generateRpsXml(rps, settings) {
   const regimeNum = parseInt(settings.regimeEspecialTributacao, 10);
   const regimeEspecial = (regimeNum >= 1 && regimeNum <= 6) ? String(regimeNum) : null;
 
+  // Endereço do tomador: omite campos vazios (o XSD não aceita <Bairro/>, <Endereco/> etc. vazios).
+  // Ordem ABRASF (tcEndereco): Endereco(logradouro), Numero, Complemento, Bairro, CodigoMunicipio, Uf, Cep.
+  const te = rps.tomador.endereco || {};
+  const teCep = (te.cep || '').replace(/\D/g, '');
+  const tomadorEndereco = {
+    ...(te.logradouro ? { Endereco: te.logradouro } : {}),
+    ...(te.numero ? { Numero: te.numero } : {}),
+    ...(te.complemento ? { Complemento: te.complemento } : {}),
+    ...(te.bairro ? { Bairro: te.bairro } : {}),
+    CodigoMunicipio: te.codigoMunicipio || '4108304',
+    Uf: te.uf || 'PR',
+    ...(teCep ? { Cep: teCep } : {})
+  };
+
   const xmlObj = {
     EnviarLoteRpsSincronoEnvio: {
       '@xmlns': 'http://www.abrasf.org.br/nfse.xsd',
@@ -98,16 +112,7 @@ export function generateRpsXml(rps, settings) {
                   ...(rps.tomador.inscricaoMunicipal ? { InscricaoMunicipal: rps.tomador.inscricaoMunicipal } : {})
                 },
                 RazaoSocial: rps.tomador.razaoSocial,
-                Endereco: {
-                  // ABRASF 2.02: tcEndereco -> o logradouro chama-se "Endereco" (não "Logradouro")
-                  Endereco: rps.tomador.endereco.logradouro,
-                  Numero: rps.tomador.endereco.numero,
-                  ...(rps.tomador.endereco.complemento ? { Complemento: rps.tomador.endereco.complemento } : {}),
-                  Bairro: rps.tomador.endereco.bairro,
-                  CodigoMunicipio: rps.tomador.endereco.codigoMunicipio || '4108304',
-                  Uf: rps.tomador.endereco.uf || 'PR',
-                  Cep: rps.tomador.endereco.cep.replace(/\D/g, '')
-                },
+                Endereco: tomadorEndereco,
                 ...(rps.tomador.contato && (rps.tomador.contato.telefone || rps.tomador.contato.email) ? {
                   Contato: {
                     ...(rps.tomador.contato.telefone ? { Telefone: rps.tomador.contato.telefone.replace(/\D/g, '') } : {}),
