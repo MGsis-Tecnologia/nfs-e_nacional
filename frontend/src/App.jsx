@@ -7,6 +7,7 @@ import RPSList from './components/RPSList';
 import SetupWizard from './components/SetupWizard';
 import Login from './components/Login';
 import ConexaoForm from './components/ConexaoForm';
+import ErrorBoundary from './components/ErrorBoundary';
 import { apiJson, apiFetch, getToken, getUser, logout } from './api';
 
 export default function App() {
@@ -145,6 +146,7 @@ export default function App() {
           </div>
         </header>
 
+        <ErrorBoundary key={activeTab}>
         {activeTab === 'dashboard' && <Dashboard rpsList={rpsList} settings={activeEmissor} cert={activeEmissor?.certConfigured ? { filename: 'configurado' } : null} onNavigate={(t) => { setActiveTab(t); if (t !== 'new') setEditingRps(null); }} />}
         {activeTab === 'new' && (activeEmissorId
           ? <RPSForm key={activeEmissorId} editingRps={editingRps} emissorId={activeEmissorId} onSave={handleSaveRps} onCancel={() => { setEditingRps(null); setActiveTab('list'); }} onShowToast={showToast} />
@@ -152,6 +154,7 @@ export default function App() {
         {activeTab === 'list' && <RPSList rpsList={rpsList} onEdit={(r) => { setEditingRps(r); setActiveTab('new'); }} onDelete={handleDeleteRps} onSend={handleSendRps} onShowToast={showToast} />}
         {activeTab === 'emissores' && <Emissores onShowToast={showToast} onChanged={fetchEmissores} />}
         {activeTab === 'conexao' && <ConexaoForm onShowToast={showToast} />}
+        </ErrorBoundary>
       </main>
 
       <Toasts toasts={toasts} />

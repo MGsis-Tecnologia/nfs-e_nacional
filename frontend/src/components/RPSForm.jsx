@@ -48,6 +48,22 @@ const emptyRps = {
   }
 };
 
+// Mescla um RPS carregado sobre a estrutura padrão, garantindo que todos os
+// blocos aninhados (tomador, endereço, contato, serviço) sempre existam.
+// Sem isso, editar um RPS com dados incompletos (ex.: origem ERP) quebra o
+// render do passo de Serviço e "joga" o usuário para fora do formulário.
+const normalizeRps = (data) => ({
+  ...emptyRps,
+  ...data,
+  tomador: {
+    ...emptyRps.tomador,
+    ...(data.tomador || {}),
+    endereco: { ...emptyRps.tomador.endereco, ...(data.tomador?.endereco || {}) },
+    contato: { ...emptyRps.tomador.contato, ...(data.tomador?.contato || {}) }
+  },
+  servico: { ...emptyRps.servico, ...(data.servico || {}) }
+});
+
 export default function RPSForm({ editingRps, emissorId, onSave, onCancel, onShowToast }) {
   const [step, setStep] = useState(1);
   const [rps, setRps] = useState(emptyRps);
@@ -55,12 +71,15 @@ export default function RPSForm({ editingRps, emissorId, onSave, onCancel, onSho
   useEffect(() => {
     if (editingRps) {
       // Formatar datas para os inputs
-      setRps({
+      setRps(normalizeRps({
         ...editingRps,
         dataEmissao: editingRps.dataEmissao ? editingRps.dataEmissao.slice(0, 16) : new Date().toISOString().slice(0, 16),
         competencia: editingRps.competencia ? editingRps.competencia.slice(0, 10) : new Date().toISOString().slice(0, 10)
-      });
+      }));
+      // Edição segue o mesmo fluxo de um RPS novo: começa no passo 1
+      setStep(1);
     } else {
+      setStep(1);
       // Novo RPS: busca o próximo número de RPS e Lote do emissor ativo (para não repetir)
       if (!emissorId) { setRps(emptyRps); return; }
       apiJson(`/api/sequencias?emissorId=${emissorId}`)
@@ -128,8 +147,7 @@ export default function RPSForm({ editingRps, emissorId, onSave, onCancel, onSho
     }));
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const handleSubmit = () => {
     if (!rps.numeroRps) {
       onShowToast("Informe o número do RPS", "warning");
       return;
@@ -219,7 +237,7 @@ export default function RPSForm({ editingRps, emissorId, onSave, onCancel, onSho
       </div>
 
       {/* Form Content */}
-      <form onSubmit={handleSubmit} style={{ minHeight: '320px' }}>
+      <form onSubmit={(e) => e.preventDefault()} style={{ minHeight: '320px' }}>
         
         {/* STEP 1: IDENTIFICATION */}
         {step === 1 && (
@@ -584,9 +602,10 @@ export default function RPSForm({ editingRps, emissorId, onSave, onCancel, onSho
               <ArrowRight size={16} />
             </button>
           ) : (
-            <button 
-              type="submit" 
+            <button
+              type="button"
               className="btn btn-primary"
+              onClick={handleSubmit}
               style={{ background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)' }}
             >
               <Save size={18} />

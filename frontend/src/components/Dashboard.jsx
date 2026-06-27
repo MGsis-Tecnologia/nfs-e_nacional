@@ -116,7 +116,7 @@ export default function Dashboard({ rpsList, settings, cert, onNavigate }) {
               <div style={{ color: 'var(--text-muted)', fontSize: '0.95rem', padding: '1rem 0' }}>Nenhuma atividade registrada ainda.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {rpsList.slice(-4).reverse().map((r, i) => (
+                {rpsList.slice(0, 4).map((r, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)' }}>
                     <div>
                       <div style={{ fontWeight: 500, fontSize: '0.95rem' }}>RPS Nº {r.numeroRps} - {r.tomador.razaoSocial}</div>
