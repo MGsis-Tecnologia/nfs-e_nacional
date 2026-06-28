@@ -94,6 +94,16 @@ const limparOutrasInfo = (txt) => {
     .split('\n').map(s => s.trim()).filter(Boolean).join('\n');
 };
 
+// A chave de acesso da NFS-e Nacional tem 50 dígitos. No ABRASF 2.02 (Foz) ela
+// não vem em tag própria: aparece como texto dentro de OutrasInformacoes
+// ("Chave de Acesso da NFS-e Nacional: <50 dígitos>"). Aqui tentamos a tag e,
+// como fallback, extraímos os 50 dígitos do texto.
+const extrairChaveAcesso = (x, outrasInfoRaw) =>
+  tag(x, 'ChaveAcesso')
+  || outrasInfoRaw?.match(/Chave de Acesso[^:]*:\s*(\d{50})/i)?.[1]
+  || outrasInfoRaw?.match(/\b(\d{50})\b/)?.[1]
+  || '';
+
 // Extrai TODOS os dados da NFS-e autorizada (para exibição e PDF/DANFSE).
 export function parseNfse(innerXml) {
   const x = block(innerXml, 'InfNfse');
@@ -105,13 +115,14 @@ export function parseNfse(innerXml) {
   const tomadorBloco = block(decl, 'Tomador');
   const servicoBloco = block(decl, 'Servico');
   const rpsBloco = block(decl, 'Rps');
+  const outrasInfoRaw = tag(x, 'OutrasInformacoes');
 
   return {
     numero: tag(x, 'Numero'),
     codigoVerificacao: tag(x, 'CodigoVerificacao'),
     dataEmissao: tag(x, 'DataEmissao'),
-    chaveAcesso: tag(x, 'ChaveAcesso'),
-    outrasInformacoes: limparOutrasInfo(tag(x, 'OutrasInformacoes')),
+    chaveAcesso: extrairChaveAcesso(x, outrasInfoRaw),
+    outrasInformacoes: limparOutrasInfo(outrasInfoRaw),
     competencia: tag(decl, 'Competencia'),
     valores: {
       baseCalculo: tag(v, 'BaseCalculo'),

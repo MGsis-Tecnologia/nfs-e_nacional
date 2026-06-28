@@ -122,6 +122,9 @@ export default function RPSList({ rpsList, onEdit, onDelete, onSend, onShowToast
                       <td>
                         <div style={{ fontWeight: 600, color: '#FFF' }}>Nº {rps.numeroRps}</div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Lote: {rps.numeroLote} | Série: {rps.serieRps}</div>
+                        {rps.numeroNfse && (
+                          <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-accent)', marginTop: '0.15rem' }}>NF-e: {rps.numeroNfse}</div>
+                        )}
                       </td>
 
                       {/* Data Emissão */}

@@ -344,7 +344,7 @@ app.post('/api/nfse/emitir', ensureReady, requireEmissorToken, async (req, res) 
     if (statusText === 'Processado') {
       await repo.bumpSequencia(emissor.id, 'rps', rps.numeroRps);
       await repo.bumpSequencia(emissor.id, 'lote', rps.numeroLote);
-      const out = { status: 'Processado', rpsId: nota.id, nfse: responseObj.nfse, pdfUrl: `/api/rps/${nota.id}/pdf` };
+      const out = { status: 'Processado', rpsId: nota.id, nfse: responseObj.nfse, pdfUrl: `/api/nfse/chave/${responseObj.nfse?.chaveAcesso || nota.chaveAcesso}/pdf` };
       if (body.incluirPdf) out.pdfBase64 = (await generateNfsePdf(responseObj.nfse, emissor, nota)).toString('base64');
       return res.json(out);
     }
@@ -360,9 +360,36 @@ app.get('/api/nfse/:id', ensureReady, requireEmissorToken, async (req, res) => {
     res.json({
       status: nota.status, rpsId: nota.id, numeroRps: nota.numeroRps,
       nfse: nfse || null, mensagens: nota.retorno?.mensagens || [],
-      pdfUrl: nfse?.numero ? `/api/rps/${nota.id}/pdf` : null
+      pdfUrl: nfse?.numero ? `/api/nfse/chave/${nfse.chaveAcesso || nota.chaveAcesso}/pdf` : null
     });
   } catch (err) { res.status(500).json({ status: 'Erro', error: err.message }); }
+});
+
+// Reimpressão do PDF da NFS-e pelo ERP, localizada pela CHAVE DE ACESSO.
+app.get('/api/nfse/chave/:chave/pdf', ensureReady, requireEmissorToken, async (req, res) => {
+  try {
+    const nota = await repo.getNotaByChaveAcesso(req.params.chave, req.emissor.id);
+    if (!nota) return res.status(404).json({ status: 'Erro', error: 'Nota não encontrada para esta chave de acesso.' });
+    const nfse = nota.retorno?.soapResponse ? parseResposta(nota.retorno.soapResponse).nfse : nota.retorno?.nfse;
+    if (!nfse || !nfse.numero) return res.status(400).json({ status: 'Erro', error: 'Esta nota ainda não foi autorizada.' });
+    const pdf = await generateNfsePdf(nfse, req.emissor, nota);
+    // Opção para clientes que preferem texto (ex.: WinDev): ?formato=base64
+    // devolve JSON com o PDF em Base64, evitando corromper o binário.
+    const formato = String(req.query.formato || '').toLowerCase();
+    if (formato === 'base64' || formato === 'json') {
+      return res.json({
+        status: 'OK',
+        numero: nfse.numero,
+        chaveAcesso: nfse.chaveAcesso || nota.chaveAcesso || '',
+        filename: `NFSe-${nfse.numero}.pdf`,
+        pdfBase64: pdf.toString('base64')
+      });
+    }
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="NFSe-${nfse.numero}.pdf"`);
+    res.setHeader('Content-Length', pdf.length);
+    res.send(pdf);
+  } catch (err) { res.status(500).json({ status: 'Erro', error: 'Erro ao gerar PDF: ' + err.message }); }
 });
 
 // ===================== Boot =====================

@@ -63,6 +63,10 @@ export function listNotas({ emissorId, status } = {}) {
 export const getNota = (id) =>
   getPrisma().nota.findUnique({ where: { id } });
 
+// Busca pela chave de acesso da NFS-e, opcionalmente restrita a um emissor.
+export const getNotaByChaveAcesso = (chaveAcesso, emissorId) =>
+  getPrisma().nota.findFirst({ where: { chaveAcesso, ...(emissorId ? { emissorId } : {}) } });
+
 export const createNota = (data) =>
   getPrisma().nota.create({ data });
 
