@@ -2,6 +2,8 @@
 const TOKEN_KEY = 'nfse_token';
 const USER_KEY = 'nfse_user';
 
+const API_BASE = import.meta.env.VITE_API_URL?.replace(/\/$/, '') ?? '';
+
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const getUser = () => localStorage.getItem(USER_KEY);
 export function setAuth(token, username) {
@@ -11,6 +13,7 @@ export function setAuth(token, username) {
 export const logout = () => { setAuth(null); window.dispatchEvent(new Event('nfse-unauth')); };
 
 export async function apiFetch(url, opts = {}) {
+  url = API_BASE + url;
   const headers = { ...(opts.headers || {}) };
   const token = getToken();
   if (token) headers['Authorization'] = 'Bearer ' + token;
@@ -31,4 +34,4 @@ export async function apiJson(url, opts = {}) {
 }
 
 // URL do PDF com token na query (para abrir em nova aba via window.open).
-export const pdfHref = (notaId) => `/api/rps/${notaId}/pdf?token=${encodeURIComponent(getToken() || '')}`;
+export const pdfHref = (notaId) => `${API_BASE}/api/rps/${notaId}/pdf?token=${encodeURIComponent(getToken() || '')}`;
