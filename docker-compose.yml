@@ -38,8 +38,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    volumes:
-      - ./backend/.env:/app/backend/.env
     networks:
       - nfse-network
     restart: unless-stopped
