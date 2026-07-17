@@ -3,15 +3,20 @@ FROM node:24-alpine AS builder
 
 WORKDIR /app
 
+# Garante devDependencies (prisma CLI, vite, etc.) mesmo se a plataforma de
+# build (ex.: Coolify) injetar NODE_ENV=production como build arg — o npm
+# pula devDependencies nesse caso, mesmo sem --only=production explícito.
+ENV NODE_ENV=development
+
 # Copy package files
 COPY package*.json ./
 COPY backend/package*.json ./backend/
 COPY frontend/package*.json ./frontend/
 
-# Install dependencies
-RUN npm install --legacy-peer-deps
-RUN cd backend && npm install --legacy-peer-deps
-RUN cd frontend && npm install --legacy-peer-deps
+# Install dependencies (--include=dev reforça o ENV acima)
+RUN npm install --legacy-peer-deps --include=dev
+RUN cd backend && npm install --legacy-peer-deps --include=dev
+RUN cd frontend && npm install --legacy-peer-deps --include=dev
 
 # Copy source code
 COPY . .
