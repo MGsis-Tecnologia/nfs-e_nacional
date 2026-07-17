@@ -424,6 +424,11 @@ if (fs.existsSync(frontendDist)) {
 async function boot() {
   ensureJwtSecret();
   if (process.env.DATABASE_URL) {
+    // Quando o DATABASE_URL já vem pronto por variável de ambiente (ex.: Coolify),
+    // o wizard de setup nunca roda — então ninguém chama "prisma db push" para
+    // criar as tabelas. Garante o schema aqui antes de conectar.
+    try { await runDbPush(process.env.DATABASE_URL); }
+    catch (e) { console.warn('⚠️  Falha ao sincronizar o schema do banco: ' + e.message); }
     try { await initPrisma(process.env.DATABASE_URL); console.log('✅ Banco conectado.'); }
     catch (e) { console.warn('⚠️  DATABASE_URL definido mas sem conexão — entrando em modo setup. (' + e.message + ')'); }
   } else {

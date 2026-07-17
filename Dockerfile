@@ -40,19 +40,21 @@ COPY package*.json ./
 COPY backend/package*.json ./backend/
 COPY frontend/package*.json ./frontend/
 
-# Install only production dependencies
+# Install only production dependencies (root e frontend não precisam da
+# CLI do prisma nem de outras devDependencies)
 RUN npm install --legacy-peer-deps --only=production
-RUN cd backend && npm install --legacy-peer-deps --only=production
 RUN cd frontend && npm install --legacy-peer-deps --only=production
 
 # Copy Prisma files
 COPY backend/prisma ./backend/prisma
 
-# Reaproveita o Prisma Client já gerado no builder (a instalação de produção
-# acima só traz o pacote "cru", sem o client; e a CLI "prisma" não está
-# disponível aqui por causa do --only=production, então não dá pra gerar de novo)
-COPY --from=builder /app/backend/node_modules/.prisma ./backend/node_modules/.prisma
-COPY --from=builder /app/backend/node_modules/@prisma/client ./backend/node_modules/@prisma/client
+# Reaproveita o node_modules do backend inteiro do builder (já inclui o
+# Prisma Client gerado e a CLI "prisma" com todas as dependências dela,
+# tipo @prisma/engines — precisa em runtime porque o boot roda
+# "prisma db push" sozinho quando DATABASE_URL já vem pronto por
+# variável de ambiente, ex.: Coolify). Builder e runtime são a mesma
+# base (node:24-alpine), então os binários nativos são compatíveis.
+COPY --from=builder /app/backend/node_modules ./backend/node_modules
 
 # Copy built frontend from builder
 COPY --from=builder /app/frontend/dist ./frontend/dist
