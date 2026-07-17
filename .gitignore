@@ -10,3 +10,6 @@ dist/
 frontend/dist/
 .DS_Store
 *.local
+
+# Claude Code - configurações locais/pessoais
+.claude/settings.local.json
