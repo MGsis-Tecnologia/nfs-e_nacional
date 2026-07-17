@@ -64,6 +64,21 @@ export default function App() {
   useEffect(() => { if (phase === 'app') fetchEmissores(); }, [phase, fetchEmissores]);
   useEffect(() => { if (phase === 'app') fetchRpsList(); }, [phase, activeEmissorId, fetchRpsList]);
 
+  // Atualiza a lista automaticamente para captar RPS vindos de fora (ERP, outra aba/usuário):
+  // faz polling a cada 15s enquanto a aba está visível e recarrega ao voltar o foco para a aba.
+  useEffect(() => {
+    if (phase !== 'app' || !activeEmissorId) return;
+    const tick = () => { if (document.visibilityState === 'visible') fetchRpsList(); };
+    const interval = setInterval(tick, 15000);
+    document.addEventListener('visibilitychange', tick);
+    window.addEventListener('focus', tick);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', tick);
+      window.removeEventListener('focus', tick);
+    };
+  }, [phase, activeEmissorId, fetchRpsList]);
+
   const handleSaveRps = async (rpsData) => {
     try {
       const isEdit = !!rpsData.id;

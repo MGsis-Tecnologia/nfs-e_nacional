@@ -61,7 +61,7 @@ export function generateRpsXml(rps, settings) {
       LoteRps: {
         '@Id': loteId,
         '@versao': '2.02',
-        NumeroLote: rps.numeroLote || '1',
+        NumeroLote: '1', // fixo em 1: sem controle de sequência de lote; incrementa apenas o RPS
         // ABRASF 2.02: LoteRps -> CpfCnpj + InscricaoMunicipal (NÃO existe <Prestador> aqui)
         CpfCnpj: { Cnpj: cleanedCnpjPrestador },
         InscricaoMunicipal: settings.inscricaoMunicipal.replace(/\D/g, ''),
