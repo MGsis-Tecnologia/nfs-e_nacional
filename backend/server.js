@@ -33,7 +33,7 @@ app.use(cors({
 app.use(express.json({ limit: '5mb' }));
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Liveness check usado pelo HEALTHCHECK do Dockerfile e pelo deploy.sh.
+// Liveness check usado pelo HEALTHCHECK do Dockerfile.
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', databaseReachable: isDbReady() });
 });
