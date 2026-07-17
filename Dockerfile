@@ -43,6 +43,12 @@ RUN cd frontend && npm install --legacy-peer-deps --only=production
 # Copy Prisma files
 COPY backend/prisma ./backend/prisma
 
+# Reaproveita o Prisma Client já gerado no builder (a instalação de produção
+# acima só traz o pacote "cru", sem o client; e a CLI "prisma" não está
+# disponível aqui por causa do --only=production, então não dá pra gerar de novo)
+COPY --from=builder /app/backend/node_modules/.prisma ./backend/node_modules/.prisma
+COPY --from=builder /app/backend/node_modules/@prisma/client ./backend/node_modules/@prisma/client
+
 # Copy built frontend from builder
 COPY --from=builder /app/frontend/dist ./frontend/dist
 

@@ -1,4 +1,7 @@
 import 'dotenv/config';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
@@ -15,6 +18,7 @@ import { readEnv, writeEnv, buildDatabaseUrl, ensureJwtSecret, runDbPush } from 
 import { signAdminToken, requireAdmin, requireAdminAllowQuery, requireEmissorToken } from './auth.js';
 
 const app = express();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
 const HOST = process.env.HOST || '0.0.0.0';
 
@@ -28,6 +32,11 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '5mb' }));
 const upload = multer({ storage: multer.memoryStorage() });
+
+// Liveness check usado pelo HEALTHCHECK do Dockerfile e pelo deploy.sh.
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', databaseReachable: isDbReady() });
+});
 
 // ---------- helpers ----------
 // Remove dados sensíveis/pesados do emissor antes de enviar ao front.
@@ -398,6 +407,18 @@ app.get('/api/nfse/chave/:chave/pdf', ensureReady, requireEmissorToken, async (r
     res.send(pdf);
   } catch (err) { res.status(500).json({ status: 'Erro', error: 'Erro ao gerar PDF: ' + err.message }); }
 });
+
+// ===================== Frontend (build único) =====================
+// Serve o SPA quando o build existe (deploy em container único). Em dev,
+// frontend e backend rodam como processos separados e esta pasta não existe.
+const frontendDist = path.join(__dirname, '../frontend/dist');
+if (fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path === '/health') return next();
+    res.sendFile(path.join(frontendDist, 'index.html'));
+  });
+}
 
 // ===================== Boot =====================
 async function boot() {

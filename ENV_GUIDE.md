@@ -4,7 +4,7 @@
 
 ```env
 DB_USER=postgres
-DB_PASSWORD=mgsispostgres
+DB_PASSWORD=troque_por_uma_senha_forte_e_unica
 DB_NAME=nfse
 DB_PORT=5432
 ```
@@ -193,7 +193,7 @@ nano .env
 
 # Preencher com:
 DB_USER=postgres
-DB_PASSWORD=mgsispostgres
+DB_PASSWORD=troque_por_uma_senha_forte_e_unica
 DB_NAME=nfse
 DB_PORT=5432
 
