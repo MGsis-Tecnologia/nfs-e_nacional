@@ -22,7 +22,7 @@ model Emissor {
   contato                  Json
   certFilename             String?
   certPassword             String?
-  certPfxBase64            String?  @db.Text
+  certPfxBase64            String?
   apiToken                 String   @unique
   proximoRps               Int      @default(1)
   proximoLote              Int      @default(1)

@@ -5,7 +5,11 @@ import { apiFetch, apiJson } from '../api';
 const vazio = {
   cnpj: '', inscricaoMunicipal: '', razaoSocial: '', nomeFantasia: '', cnae: '',
   incentivoFiscal: false, optanteSimplesNacional: '2', regimeEspecialTributacao: '0', ambiente: '2',
-  endereco: { logradouro: '', numero: '', complemento: '', bairro: '', codigoMunicipio: '4108304', uf: 'PR', cep: '' },
+  padraoIntegracao: 'nfse-gov-br',
+  municipioCodigoIbge: '4106902',
+  municipioNome: '',
+  versaoLayout: '2.00',
+  endereco: { logradouro: '', numero: '', complemento: '', bairro: '', codigoMunicipio: '4106902', uf: 'PR', cep: '' },
   contato: { telefone: '', email: '' }
 };
 
@@ -101,6 +105,27 @@ export default function EmissorForm({ emissor, onSaved, onCancel, onShowToast })
           <div className="form-group col-4"><label className="form-label">Ambiente</label>
             <select name="ambiente" className="form-input" value={form.ambiente} onChange={(e) => set('ambiente', e.target.value)}>
               <option value="2">Homologação (Testes)</option><option value="1">Produção (Real)</option></select></div>
+
+          <div className="form-group col-4"><label className="form-label">Padrão de Integração</label>
+            <select className="form-input" value={form.padraoIntegracao || 'nfse-gov-br'} onChange={(e) => set('padraoIntegracao', e.target.value)}>
+              <option value="nfse-gov-br">🌐 NFS-e Nacional (nfse.gov.br)</option>
+              <option value="foz-iguacu">🏛️ Foz do Iguaçu (Legacy)</option>
+            </select></div>
+
+          <div className="form-group col-4"><label className="form-label">Versão do Layout</label>
+            <select className="form-input" value={form.versaoLayout || '2.00'} onChange={(e) => set('versaoLayout', e.target.value)}>
+              <option value="2.00">NT-004 v2.00</option>
+              <option value="2.03">ABRASF v2.03</option>
+            </select></div>
+
+          <div className="form-group col-6"><label className="form-label">Código IBGE do Município Principal</label>
+            <input className="form-input" placeholder="4106902" value={form.municipioCodigoIbge || ''} onChange={(e) => set('municipioCodigoIbge', e.target.value)} required />
+            <small style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>Código IBGE do município onde a empresa emite NFS-e</small></div>
+
+          <div className="form-group col-6"><label className="form-label">Nome do Município</label>
+            <input className="form-input" placeholder="Curitiba" value={form.municipioNome || ''} onChange={(e) => set('municipioNome', e.target.value)} />
+            <small style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>Apenas referência (nome do município)</small></div>
+
           <div className="form-group col-4"><label className="form-label">CNPJ</label>
             <input className="form-input" placeholder="00.000.000/0000-00" value={form.cnpj} onChange={(e) => set('cnpj', e.target.value)} required disabled={isEdit} /></div>
           <div className="form-group col-4"><label className="form-label">Inscrição Municipal</label>

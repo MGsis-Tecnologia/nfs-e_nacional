@@ -113,21 +113,100 @@ async function assinarEEnviarNfseCentral(nota, emissor, certConfig) {
     throw new Error("Certificado digital não configurado.");
   }
 
-  // TODO: Implementar geração de DPS em XML (será feito em próxima etapa)
-  // Por enquanto, retornar estrutura de erro indicando que não está pronto
-  const statusText = 'Erro';
-  const responseObj = {
-    success: false,
-    error: 'Integração com nfse.gov.br ainda em desenvolvimento',
-    mensagens: [{
-      codigo: 'DEV_PENDING',
-      mensagem: 'Geração de DPS em XML para nfse.gov.br será implementada em breve',
-      correcao: 'Aguarde próximas releases'
-    }],
-    nota: nota.id
-  };
+  try {
+    const { loadCertificate } = await import('./xmlSigner.js');
+    const { signRpsXml } = await import('./xmlSigner.js');
+    const { gerarDpsXmlNfseCentral, prepararPayloadNfseCentral, extrairDadosNfseResposta } = await import('./dpsGenerator.js');
+    const { enviarDpsNfseCentral, extrairMensagensErro } = nfseCentralRest;
 
-  return { statusText, responseObj };
+    // 1. Gerar DPS em XML
+    const { dpsXml, metadados } = gerarDpsXmlNfseCentral(nota, emissor);
+
+    // 2. Assinar XML da DPS
+    const certBuffer = Buffer.from(certConfig.pfxBase64, 'base64');
+    const { privateKeyPem, certPem } = loadCertificate(certBuffer, certConfig.password);
+    const dpsXmlAssinado = signRpsXml({
+      xml: dpsXml,
+      rpsId: `rps_${nota.id}`,
+      loteId: `lote_${Date.now()}`,
+      privateKeyPem,
+      certPem
+    });
+
+    // 3. Determinar ambiente (homologação ou produção)
+    const ambiente = emissor.ambiente === '1' ? 'producao' : 'homologacao';
+
+    // 4. Enviar para nfse.gov.br
+    console.log(`\n========== ENVIANDO DPS ${nota.numeroRps} PARA NFSE.GOV.BR (${ambiente.toUpperCase()}) ==========`);
+
+    const resultadoEnvio = await enviarDpsNfseCentral({
+      dpsXmlAssinado,
+      ambiente,
+      certConfig: { privateKeyPem, certPem },
+      cnpj: emissor.cnpj
+    });
+
+    // 5. Processar resposta
+    if (!resultadoEnvio.success) {
+      console.error(`❌ Erro ao enviar DPS para nfse.gov.br`);
+      const mensagens = extrairMensagensErro(resultadoEnvio.responseData);
+
+      return {
+        statusText: 'Erro',
+        responseObj: {
+          success: false,
+          error: resultadoEnvio.message || 'Erro ao enviar DPS',
+          mensagens: mensagens.length ? mensagens : [{
+            codigo: 'ENVIO_FALHOU',
+            mensagem: resultadoEnvio.message || 'Falha na transmissão',
+            correcao: 'Verifique conectividade e certificado digital'
+          }],
+          restResponse: resultadoEnvio.responseData,
+          restRequest: { ambiente, cnpj: emissor.cnpj, metadados },
+          dpsXmlAssinado
+        }
+      };
+    }
+
+    // Sucesso!
+    console.log(`✅ DPS enviada com sucesso para nfse.gov.br`);
+    const dadosNfse = extrairDadosNfseResposta(resultadoEnvio.responseData);
+
+    if (dadosNfse.numeroNfse) {
+      console.log(`✅ NFS-e nº ${dadosNfse.numeroNfse} (verificação ${dadosNfse.codigoVerificacao})`);
+    }
+
+    return {
+      statusText: 'Processado',
+      responseObj: {
+        success: true,
+        mensagens: [{
+          codigo: 'SUCESSO',
+          mensagem: 'DPS enviada com sucesso e processada pelo Ambiente Nacional'
+        }],
+        nfse: dadosNfse,
+        restResponse: resultadoEnvio.responseData,
+        restRequest: { ambiente, cnpj: emissor.cnpj, metadados },
+        dpsXmlAssinado
+      }
+    };
+  } catch (error) {
+    console.error(`❌ Erro ao processar DPS para nfse.gov.br: ${error.message}`);
+
+    return {
+      statusText: 'Erro',
+      responseObj: {
+        success: false,
+        error: error.message,
+        mensagens: [{
+          codigo: 'ERRO_PROCESSAMENTO',
+          mensagem: error.message,
+          correcao: 'Verifique os dados da DPS e tente novamente'
+        }],
+        nota: nota.id
+      }
+    };
+  }
 }
 
 export { nfseFozSoap, nfseCentralRest };

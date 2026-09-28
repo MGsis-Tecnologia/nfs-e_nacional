@@ -48,8 +48,28 @@ const publicEmissor = (e) => {
 const certConfigDe = (e) => ({ pfxBase64: e.certPfxBase64, password: e.certPassword, filename: e.certFilename });
 const dadosNfse = (responseObj) => {
   try {
-    const nfse = responseObj?.soapResponse ? parseResposta(responseObj.soapResponse).nfse : null;
-    return nfse ? { numeroNfse: nfse.numero, codigoVerificacao: nfse.codigoVerificacao, chaveAcesso: nfse.chaveAcesso } : {};
+    // Resposta SOAP (Foz do Iguaçu)
+    if (responseObj?.soapResponse) {
+      const nfse = parseResposta(responseObj.soapResponse).nfse;
+      return nfse ? { numeroNfse: nfse.numero, codigoVerificacao: nfse.codigoVerificacao, chaveAcesso: nfse.chaveAcesso } : {};
+    }
+    // Resposta REST (nfse.gov.br)
+    if (responseObj?.nfse) {
+      return {
+        numeroNfse: responseObj.nfse.numeroNfse || responseObj.nfse.numero,
+        codigoVerificacao: responseObj.nfse.codigoVerificacao,
+        chaveAcesso: responseObj.nfse.chaveAcesso
+      };
+    }
+    // Fallback: dados diretos
+    if (responseObj?.numeroNfse) {
+      return {
+        numeroNfse: responseObj.numeroNfse,
+        codigoVerificacao: responseObj.codigoVerificacao,
+        chaveAcesso: responseObj.chaveAcesso
+      };
+    }
+    return {};
   } catch { return {}; }
 };
 
@@ -406,6 +426,143 @@ app.get('/api/nfse/chave/:chave/pdf', ensureReady, requireEmissorToken, async (r
     res.setHeader('Content-Length', pdf.length);
     res.send(pdf);
   } catch (err) { res.status(500).json({ status: 'Erro', error: 'Erro ao gerar PDF: ' + err.message }); }
+});
+
+// ===================== TESTE - Homologação nfse.gov.br =====================
+// Endpoints para validar integração com o novo padrão nacional
+// IMPORTANTE: Apenas funciona com credenciais de teste/homologação
+
+app.post('/api/test/nfse-gov-br/validar-conectividade', ensureReady, requireAdmin, async (req, res) => {
+  try {
+    const { validarCertificadoParaNfseCentral, verificarConectividadeNfseCentral, testarIntegracaoNfseCentral } = await import('./utils/nfseValidation.js');
+
+    // Se houver um emissor com certificado, testa com ele
+    const emissor = req.body?.emissorId
+      ? await repo.getEmissor(req.body.emissorId)
+      : await repo.getEmissores().then(e => e[0]);
+
+    const resultado = {
+      timestamp: new Date().toISOString(),
+      conectividade: {},
+      certificado: null,
+      integracao: null
+    };
+
+    // Teste 1: Conectividade
+    resultado.conectividade = await verificarConectividadeNfseCentral();
+
+    // Teste 2: Validar certificado (se disponível)
+    if (emissor?.certPfxBase64) {
+      try {
+        const certBuffer = Buffer.from(emissor.certPfxBase64, 'base64');
+        resultado.certificado = await validarCertificadoParaNfseCentral(certBuffer, emissor.certPassword);
+      } catch (err) {
+        resultado.certificado = { valido: false, erro: err.message };
+      }
+    }
+
+    // Teste 3: Integração completa (se tudo ok)
+    if (resultado.conectividade.homologacao.status && emissor?.certPfxBase64) {
+      try {
+        const certBuffer = Buffer.from(emissor.certPfxBase64, 'base64');
+        resultado.integracao = await testarIntegracaoNfseCentral({
+          cnpj: emissor.cnpj,
+          certificadoBuffer: certBuffer,
+          certificadoSenha: emissor.certPassword,
+          ambiente: 'homologacao'
+        });
+      } catch (err) {
+        resultado.integracao = { sucesso: false, erro: err.message };
+      }
+    }
+
+    res.json(resultado);
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+});
+
+app.post('/api/test/nfse-gov-br/simular-dps', ensureReady, requireAdmin, async (req, res) => {
+  try {
+    const { simularFluxoEnvioDps } = await import('./utils/nfseValidation.js');
+    const b = req.body || {};
+
+    if (!b.emissorId || !b.notaData) {
+      return res.status(400).json({ erro: 'emissorId e notaData são obrigatórios' });
+    }
+
+    const emissor = await repo.getEmissor(b.emissorId);
+    if (!emissor) return res.status(404).json({ erro: 'Emissor não encontrado' });
+
+    const nota = b.notaData;
+    const resultado = await simularFluxoEnvioDps(nota, emissor);
+
+    res.json({
+      timestamp: new Date().toISOString(),
+      simulacao: resultado,
+      aviso: 'Esta é uma simulação. Nenhum dado foi realmente enviado.'
+    });
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+});
+
+// Endpoint para enviar DPS real para homologação (USE COM CUIDADO!)
+app.post('/api/test/nfse-gov-br/enviar-dps', ensureReady, requireAdmin, async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.emissorId || !b.notaId) {
+      return res.status(400).json({ erro: 'emissorId e notaId são obrigatórios' });
+    }
+
+    const nota = await repo.getNota(b.notaId);
+    if (!nota) return res.status(404).json({ erro: 'Nota não encontrada' });
+
+    const emissor = await repo.getEmissor(b.emissorId);
+    if (!emissor) return res.status(404).json({ erro: 'Emissor não encontrado' });
+
+    if (!emissor.certPfxBase64) {
+      return res.status(400).json({ erro: 'Certificado digital não configurado para este emissor' });
+    }
+
+    // Apenas em homologação
+    if (emissor.ambiente !== '2') {
+      return res.status(400).json({ erro: 'Este endpoint é apenas para homologação (ambiente=2)' });
+    }
+
+    // Validar antes de enviar
+    const { validarDpsNfseCentral } = await import('./utils/dpsGenerator.js');
+    const errosValidacao = validarDpsNfseCentral(nota, emissor);
+    if (errosValidacao.length > 0) {
+      return res.status(400).json({ erro: 'Validação falhou', erros: errosValidacao });
+    }
+
+    // Enviar para homologação
+    const { assinarEEnviar } = await import('./utils/nfseService.js');
+    const certConfig = { pfxBase64: emissor.certPfxBase64, password: emissor.certPassword, filename: emissor.certFilename };
+
+    const { statusText, responseObj } = await assinarEEnviar(nota, emissor, certConfig);
+
+    // Atualizar no banco
+    const notaAtualizada = await repo.updateNota(nota.id, {
+      status: statusText,
+      retorno: responseObj,
+      ...(statusText === 'Processado' ? {
+        numeroNfse: responseObj.nfse?.numeroNfse,
+        codigoVerificacao: responseObj.nfse?.codigoVerificacao,
+        chaveAcesso: responseObj.nfse?.chaveAcesso
+      } : {})
+    });
+
+    res.json({
+      status: statusText,
+      nota: notaAtualizada,
+      resposta: responseObj,
+      aviso: 'Enviado para HOMOLOGAÇÃO nfse.gov.br'
+    });
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
 });
 
 // ===================== Frontend (build único) =====================

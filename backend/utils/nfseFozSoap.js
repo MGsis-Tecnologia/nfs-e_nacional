@@ -71,9 +71,9 @@ export async function assinarEEnviar(rps, settings, certConfig) {
   const certBuffer = Buffer.from(certConfig.pfxBase64, 'base64');
   const { privateKeyPem, certPem } = loadCertificate(certBuffer, certConfig.password);
 
-  const { xml, loteId, rpsId } = generateRpsXml(rps, settings);
+  const { xml, loteId, rpsId, versao } = generateRpsXml(rps, settings, { padrao: 'foz-iguacu' });
   const signedXml = signRpsXml({ xml, rpsId, loteId, privateKeyPem, certPem });
-  const soapEnvelope = wrapInSoapEnvelope(signedXml, 'RecepcionarLoteRpsSincronoRequest');
+  const soapEnvelope = wrapInSoapEnvelope(signedXml, 'RecepcionarLoteRpsSincronoRequest', versao);
 
   const isProd = settings.ambiente === '1';
   const soapUrl = isProd
