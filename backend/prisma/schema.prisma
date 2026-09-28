@@ -29,6 +29,13 @@ model Emissor {
   ativo                    Boolean  @default(true)
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
+
+  // Novos campos para suporte ao padrão nacional
+  municipioCodigoIbge      String?  // NULL = usar nfse.gov.br nacional
+  municipioNome            String?  // Referência amigável do município
+  padraoIntegracao         String   @default("nfse-gov-br") // "nfse-gov-br" | "foz-iguacu" (legacy)
+  versaoLayout             String   @default("2.00") // NT-004 versão: "2.00" | "2.03" (ABRASF transição)
+
   notas                    Nota[]
 }
 
