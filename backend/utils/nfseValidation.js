@@ -269,8 +269,10 @@ export async function simularFluxoEnvioDps(nota, emissor) {
         tamanhoXml: dpsXml?.length || 0,
         metadados: {
           cnpj: metadados.cnpj,
-          numeroRps: metadados.numeroRps,
-          codigoMunicipioServico: metadados.codigoMunicipioServico
+          idDps: metadados.idDps,
+          numeroDps: metadados.numeroDps,
+          cTribNac: metadados.cTribNac,
+          codigoMunicipioPrestacao: metadados.codigoMunicipioPrestacao
         }
       };
     } catch (err) {

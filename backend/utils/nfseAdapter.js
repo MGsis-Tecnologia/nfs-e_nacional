@@ -3,6 +3,8 @@
 
 import * as nfseFozSoap from './nfseFozSoap.js';
 import * as nfseCentralRest from './nfseCentralApi.js';
+import { validarDpsNfseCentral, gerarDpsXmlNfseCentral, extrairDadosNfseResposta } from './dpsGenerator.js';
+import { loadCertificate, signDpsXml } from './xmlSigner.js';
 
 /**
  * Determina qual adaptador usar baseado na configuração do emissor
@@ -57,55 +59,6 @@ function validarRpsFoz(nota, emissor) {
   return nfseFozSoap.validarEmissao(nota, emissor);
 }
 
-function validarDpsNfseCentral(nota, emissor) {
-  const erros = [];
-
-  // Validações básicas (comuns a ambos os sistemas)
-  if (!emissor?.cnpj || !emissor?.inscricaoMunicipal) {
-    erros.push("Configurações do emissor incompletas (CNPJ/Inscrição Municipal).");
-  }
-  if (!nota.numeroRps) {
-    erros.push("Número do RPS/DPS é obrigatório.");
-  }
-  if (!nota.servico?.codigoTributacaoMunicipio && !nota.servico?.codigoServico) {
-    erros.push("Código de Serviço é obrigatório.");
-  }
-  if (!(parseFloat(String(nota.servico?.valorServicos ?? '').replace(',', '.')) > 0)) {
-    erros.push("Valor dos Serviços deve ser maior que zero.");
-  }
-  if (!nota.tomador?.cpfCnpj) {
-    erros.push("CPF/CNPJ do Tomador é obrigatório.");
-  }
-  if (!nota.tomador?.razaoSocial) {
-    erros.push("Razão Social do Tomador é obrigatória.");
-  }
-
-  // Endereço do tomador (obrigatório no padrão nacional)
-  const end = nota.tomador?.endereco || {};
-  if (!end.logradouro) {
-    erros.push("Logradouro do Tomador é obrigatório.");
-  }
-  if (!end.numero) {
-    erros.push("Número do endereço do Tomador é obrigatório.");
-  }
-  if (!end.bairro) {
-    erros.push("Bairro do Tomador é obrigatório.");
-  }
-  if (!end.cep || String(end.cep).replace(/\D/g, '').length !== 8) {
-    erros.push("CEP do Tomador é obrigatório (8 dígitos).");
-  }
-
-  // Validações específicas ao padrão nacional
-  if (emissor.optanteSimplesNacional === '1') {
-    const regimeNum = parseInt(emissor.regimeEspecialTributacao, 10);
-    if (![5, 6].includes(regimeNum)) {
-      erros.push("Optante Simples Nacional: Regime Especial deve ser 5 (MEI) ou 6 (ME/EPP).");
-    }
-  }
-
-  return erros;
-}
-
 // ============ Envio ============
 
 async function assinarEEnviarNfseCentral(nota, emissor, certConfig) {
@@ -114,36 +67,25 @@ async function assinarEEnviarNfseCentral(nota, emissor, certConfig) {
   }
 
   try {
-    const { loadCertificate } = await import('./xmlSigner.js');
-    const { signRpsXml } = await import('./xmlSigner.js');
-    const { gerarDpsXmlNfseCentral, prepararPayloadNfseCentral, extrairDadosNfseResposta } = await import('./dpsGenerator.js');
     const { enviarDpsNfseCentral, extrairMensagensErro } = nfseCentralRest;
 
-    // 1. Gerar DPS em XML
-    const { dpsXml, metadados } = gerarDpsXmlNfseCentral(nota, emissor);
+    // 1. Gerar DPS em XML (leiaute nacional v1.01)
+    const { dpsXml, dpsId, metadados } = gerarDpsXmlNfseCentral(nota, emissor);
 
-    // 2. Assinar XML da DPS
+    // 2. Assinar o infDPS
     const certBuffer = Buffer.from(certConfig.pfxBase64, 'base64');
     const { privateKeyPem, certPem } = loadCertificate(certBuffer, certConfig.password);
-    const dpsXmlAssinado = signRpsXml({
-      xml: dpsXml,
-      rpsId: `rps_${nota.id}`,
-      loteId: `lote_${Date.now()}`,
-      privateKeyPem,
-      certPem
-    });
+    const dpsXmlAssinado = signDpsXml({ xml: dpsXml, dpsId, privateKeyPem, certPem });
 
-    // 3. Determinar ambiente (homologação ou produção)
+    // 3. Determinar ambiente (homologação = produção restrita)
     const ambiente = emissor.ambiente === '1' ? 'producao' : 'homologacao';
 
-    // 4. Enviar para nfse.gov.br
-    console.log(`\n========== ENVIANDO DPS ${nota.numeroRps} PARA NFSE.GOV.BR (${ambiente.toUpperCase()}) ==========`);
-
+    // 4. Enviar para a SEFIN Nacional
+    console.log(`DPS ${nota.numeroRps} (${dpsId})`);
     const resultadoEnvio = await enviarDpsNfseCentral({
       dpsXmlAssinado,
       ambiente,
-      certConfig: { privateKeyPem, certPem },
-      cnpj: emissor.cnpj
+      certConfig: { privateKeyPem, certPem }
     });
 
     // 5. Processar resposta
@@ -170,7 +112,7 @@ async function assinarEEnviarNfseCentral(nota, emissor, certConfig) {
 
     // Sucesso!
     console.log(`✅ DPS enviada com sucesso para nfse.gov.br`);
-    const dadosNfse = extrairDadosNfseResposta(resultadoEnvio.responseData);
+    const dadosNfse = extrairDadosNfseResposta(resultadoEnvio.responseData, resultadoEnvio.nfseXml);
 
     if (dadosNfse.numeroNfse) {
       console.log(`✅ NFS-e nº ${dadosNfse.numeroNfse} (verificação ${dadosNfse.codigoVerificacao})`);
@@ -185,6 +127,7 @@ async function assinarEEnviarNfseCentral(nota, emissor, certConfig) {
           mensagem: 'DPS enviada com sucesso e processada pelo Ambiente Nacional'
         }],
         nfse: dadosNfse,
+        nfseXml: resultadoEnvio.nfseXml,
         restResponse: resultadoEnvio.responseData,
         restRequest: { ambiente, cnpj: emissor.cnpj, metadados },
         dpsXmlAssinado

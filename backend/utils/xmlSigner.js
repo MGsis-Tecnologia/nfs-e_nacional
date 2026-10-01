@@ -108,6 +108,35 @@ function signElement({ xml, targetElementXpath, targetId, privateKeyPem, certPem
   return sig.getSignedXml();
 }
 
+/**
+ * Assina a DPS da NFS-e Nacional: referência ao infDPS (#Id), assinatura
+ * enveloped como último filho de <DPS>, C14N exclusivo e RSA-SHA256 —
+ * algoritmos exigidos pela SEFIN Nacional.
+ */
+export function signDpsXml({ xml, dpsId, privateKeyPem, certPem }) {
+  const c14n = 'http://www.w3.org/2001/10/xml-exc-c14n#';
+  try {
+    const sig = new SignedXml({
+      privateKey: Buffer.from(privateKeyPem),
+      publicCert: Buffer.from(certPem),
+      signatureAlgorithm: 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256',
+      canonicalizationAlgorithm: c14n,
+    });
+    sig.addReference({
+      xpath: `//*[local-name()='infDPS' and @Id='${dpsId}']`,
+      transforms: ['http://www.w3.org/2000/09/xmldsig#enveloped-signature', c14n],
+      digestAlgorithm: 'http://www.w3.org/2001/04/xmlenc#sha256'
+    });
+    sig.computeSignature(xml, {
+      prefix: '',
+      location: { reference: "/*[local-name()='DPS']", action: 'append' }
+    });
+    return '<?xml version="1.0" encoding="UTF-8"?>' + sig.getSignedXml();
+  } catch (err) {
+    throw new Error('Erro na assinatura digital da DPS: ' + err.message);
+  }
+}
+
 export function signRpsXml({ xml, rpsId, loteId, privateKeyPem, certPem }) {
   try {
     // 1. Sign InfDeclaracaoPrestacaoServico (RPS)

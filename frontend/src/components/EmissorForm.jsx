@@ -6,10 +6,10 @@ const vazio = {
   cnpj: '', inscricaoMunicipal: '', razaoSocial: '', nomeFantasia: '', cnae: '',
   incentivoFiscal: false, optanteSimplesNacional: '2', regimeEspecialTributacao: '0', ambiente: '2',
   padraoIntegracao: 'nfse-gov-br',
-  municipioCodigoIbge: '4106902',
+  municipioCodigoIbge: '',
   municipioNome: '',
   versaoLayout: '2.00',
-  endereco: { logradouro: '', numero: '', complemento: '', bairro: '', codigoMunicipio: '4106902', uf: 'PR', cep: '' },
+  endereco: { logradouro: '', numero: '', complemento: '', bairro: '', codigoMunicipio: '', uf: 'PR', cep: '' },
   contato: { telefone: '', email: '' }
 };
 

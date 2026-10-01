@@ -12,6 +12,7 @@ import { generateRpsXml } from './utils/xmlGenerator.js';
 import { parseResposta } from './utils/responseParser.js';
 import { generateNfsePdf } from './utils/pdfGenerator.js';
 import { validarEmissao, assinarEEnviar } from './utils/nfseService.js';
+import { obterTipoIntegracao } from './utils/nfseAdapter.js';
 import * as repo from './repo.js';
 import { initPrisma, isDbReady, testConnection } from './prisma.js';
 import { readEnv, writeEnv, buildDatabaseUrl, ensureJwtSecret, runDbPush } from './setup.js';
@@ -109,6 +110,7 @@ app.post('/api/setup/database', async (req, res) => {
     await initPrisma(url);
     res.json({ success: true });
   } catch (err) {
+    console.error('[setup/database]', err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -201,7 +203,11 @@ app.post('/api/emissores', ensureReady, requireAdmin, async (req, res) => {
       regimeEspecialTributacao: b.regimeEspecialTributacao || '0',
       ambiente: b.ambiente || '2',
       endereco: b.endereco || {},
-      contato: b.contato || {}
+      contato: b.contato || {},
+      municipioCodigoIbge: b.municipioCodigoIbge ? String(b.municipioCodigoIbge).replace(/\D/g, '') : null,
+      municipioNome: b.municipioNome || null,
+      padraoIntegracao: b.padraoIntegracao || 'nfse-gov-br',
+      versaoLayout: b.versaoLayout || '2.00'
     });
     res.status(201).json(publicEmissor(e));
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -212,8 +218,12 @@ app.put('/api/emissores/:id', ensureReady, requireAdmin, async (req, res) => {
     const b = req.body || {};
     const data = {};
     for (const k of ['inscricaoMunicipal', 'razaoSocial', 'nomeFantasia', 'cnae',
-      'optanteSimplesNacional', 'regimeEspecialTributacao', 'ambiente', 'endereco', 'contato']) {
+      'optanteSimplesNacional', 'regimeEspecialTributacao', 'ambiente', 'endereco', 'contato',
+      'municipioNome', 'padraoIntegracao', 'versaoLayout']) {
       if (k in b) data[k] = b[k];
+    }
+    if ('municipioCodigoIbge' in b) {
+      data.municipioCodigoIbge = b.municipioCodigoIbge ? String(b.municipioCodigoIbge).replace(/\D/g, '') : null;
     }
     if ('incentivoFiscal' in b) data.incentivoFiscal = !!b.incentivoFiscal;
     if (b.cnpj) data.cnpj = String(b.cnpj).replace(/\D/g, '');
@@ -307,6 +317,10 @@ app.post('/api/rps/:id/generate', ensureReady, requireAdmin, async (req, res) =>
     const nota = await repo.getNota(req.params.id);
     if (!nota) return res.status(404).json({ error: 'Nota não encontrada.' });
     const emissor = await repo.getEmissor(nota.emissorId);
+    if (obterTipoIntegracao(emissor) === 'nfse-gov-br') {
+      const { gerarDpsXmlNfseCentral } = await import('./utils/dpsGenerator.js');
+      return res.json({ xml: gerarDpsXmlNfseCentral(nota, emissor).dpsXml });
+    }
     const { xml } = generateRpsXml(nota, emissor);
     res.json({ xml });
   } catch (err) { res.status(500).json({ error: err.message }); }
